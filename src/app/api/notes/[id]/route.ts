@@ -16,14 +16,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await req.json();
 
-  const note = await db.select().from(notes).where(eq(notes.id, id)).get();
+  const [note] = await db.select().from(notes).where(eq(notes.id, id)).limit(1);
   if (!note || note.userId !== session.user.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const updated = await db.update(notes).set({
     ...body,
-    updatedAt: sql`(strftime('%s', 'now'))`,
+    updatedAt: new Date(),
   }).where(eq(notes.id, id)).returning();
 
   return NextResponse.json(updated[0]);
@@ -37,7 +37,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
   const { id } = await params;
 
-  const note = await db.select().from(notes).where(eq(notes.id, id)).get();
+  const [note] = await db.select().from(notes).where(eq(notes.id, id)).limit(1);
   if (!note || note.userId !== session.user.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

@@ -20,7 +20,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const userRecord = await db.select().from(users).where(eq(users.email, credentials.email as string)).get();
+        const [userRecord] = await db.select().from(users).where(eq(users.email, credentials.email as string)).limit(1);
 
         if (!userRecord) return null;
 

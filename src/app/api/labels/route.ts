@@ -25,9 +25,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Name required" }, { status: 400 });
   }
 
-  const existing = await db.select().from(labels).where(
+  const [existing] = await db.select().from(labels).where(
     and(eq(labels.name, name.trim()), eq(labels.userId, session.user.id))
-  ).get();
+  ).limit(1);
 
   if (existing) {
     return NextResponse.json({ error: "Label already exists" }, { status: 409 });

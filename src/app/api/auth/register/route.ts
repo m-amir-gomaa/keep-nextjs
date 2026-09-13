@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const existingUser = await db.select().from(users).where(eq(users.email, email)).get();
+    const [existingUser] = await db.select().from(users).where(eq(users.email, email)).limit(1);
 
     if (existingUser) {
       return NextResponse.json(
