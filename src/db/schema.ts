@@ -1,37 +1,36 @@
-import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
+import { pgTable, text, timestamp, boolean, primaryKey } from "drizzle-orm/pg-core";
 
-export const users = sqliteTable("user", {
+export const users = pgTable("user", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   email: text("email").notNull().unique(),
   name: text("name"),
   password: text("password").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const notes = sqliteTable("note", {
+export const notes = pgTable("note", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   title: text("title").notNull().default(""),
   body: text("body").notNull().default(""),
-  pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
-  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
-  deleted: integer("deleted", { mode: "boolean" }).notNull().default(false),
+  pinned: boolean("pinned").notNull().default(false),
+  archived: boolean("archived").notNull().default(false),
+  deleted: boolean("deleted").notNull().default(false),
   color: text("color").notNull().default(""),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const labels = sqliteTable("label", {
+export const labels = pgTable("label", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const noteLabels = sqliteTable("note_label", {
+export const noteLabels = pgTable("note_label", {
   noteId: text("note_id").notNull().references(() => notes.id, { onDelete: "cascade" }),
   labelId: text("label_id").notNull().references(() => labels.id, { onDelete: "cascade" }),
 }, (table) => {
