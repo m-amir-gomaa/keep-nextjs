@@ -10,11 +10,26 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const allNotes = await db.select().from(notes).where(
-    and(eq(notes.userId, session.user.id), eq(notes.deleted, false), eq(notes.archived, false))
-  ).orderBy(desc(notes.pinned), desc(notes.updatedAt));
+  const userId = session.user.id;
 
-  return NextResponse.json(allNotes);
+  const allNotes = await db.query.notes.findMany({
+    where: (notes, { eq, and }) => and(eq(notes.userId, userId), eq(notes.deleted, false), eq(notes.archived, false)),
+    orderBy: (notes, { desc }) => [desc(notes.pinned), desc(notes.updatedAt)],
+    with: {
+      noteLabels: {
+        with: {
+          label: true
+        }
+      }
+    }
+  });
+
+  const formattedNotes = allNotes.map(n => ({
+    ...n,
+    labels: n.noteLabels.map(nl => nl.label)
+  }));
+
+  return NextResponse.json(formattedNotes);
 }
 
 export async function POST(req: NextRequest) {
@@ -24,7 +39,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { title = "", body: noteBody = "", color = "", pinned = false } = body;
+  const { title = "", body: noteBody = "", color = "", pinned = false, labelIds = [] } = body;
 
   if (!title.trim() && !noteBody.trim()) {
     return NextResponse.json({ error: "Note cannot be empty" }, { status: 400 });
@@ -38,5 +53,24 @@ export async function POST(req: NextRequest) {
     userId: session.user.id,
   }).returning();
 
-  return NextResponse.json(result[0], { status: 201 });
+  const noteId = result[0].id;
+  
+  if (labelIds.length > 0) {
+    await db.insert(noteLabels).values(
+      labelIds.map((id: string) => ({ noteId, labelId: id }))
+    );
+  }
+
+  // fetch with labels
+  const finalNote = await db.query.notes.findFirst({
+    where: eq(notes.id, noteId),
+    with: { noteLabels: { with: { label: true } } }
+  });
+
+  const formattedNote = {
+    ...finalNote,
+    labels: finalNote?.noteLabels.map(nl => nl.label)
+  };
+
+  return NextResponse.json(formattedNote, { status: 201 });
 }

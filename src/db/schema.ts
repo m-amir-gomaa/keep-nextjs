@@ -1,4 +1,5 @@
 import { pgTable, text, timestamp, boolean, primaryKey } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 
 export const users = pgTable("user", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -38,3 +39,22 @@ export const noteLabels = pgTable("note_label", {
     pk: primaryKey({ columns: [table.noteId, table.labelId] }),
   };
 });
+
+export const notesRelations = relations(notes, ({ many }) => ({
+  noteLabels: many(noteLabels),
+}));
+
+export const labelsRelations = relations(labels, ({ many }) => ({
+  noteLabels: many(noteLabels),
+}));
+
+export const noteLabelsRelations = relations(noteLabels, ({ one }) => ({
+  note: one(notes, {
+    fields: [noteLabels.noteId],
+    references: [notes.id],
+  }),
+  label: one(labels, {
+    fields: [noteLabels.labelId],
+    references: [labels.id],
+  }),
+}));
