@@ -35,6 +35,8 @@ jobs:
       DATABASE_URL: postgresql://noteweld_test:disposable-ci-password@127.0.0.1:5432/noteweld_test
       AUTH_SECRET: disposable-ci-auth-value-not-for-production
       AUTH_URL: http://localhost:3000
+      # Runner Chrome has an Ubuntu-supported sandbox profile.
+      PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
@@ -48,7 +50,8 @@ jobs:
       - run: npm test
       - run: npm run test:database
       - run: node scripts/isolated.mjs build
-      - run: npx playwright install --with-deps chromium
+      - name: Check sandboxed runner Chrome
+        run: google-chrome --version
       - name: Real cookie / PostgreSQL journey and mocked failure states
         run: npm run test:browser
       # Reports may contain recovery form context on failure; keep them out of public artifacts.

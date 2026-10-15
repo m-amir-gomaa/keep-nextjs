@@ -8,7 +8,9 @@ export default defineConfig({
   retries: 0,
   timeout: 60000,
   globalTimeout: 600000,
-  reporter: [["list"], ["html", { open: "never" }]],
+  reporter: process.env.CI
+    ? [["list"], ["github"]]
+    : [["list"], ["html", { open: "never" }]],
   use: { baseURL, trace: "off", screenshot: "off", video: "off" }, // Never capture passphrases/recovery keys in CI artifacts.
   projects: [
     {
