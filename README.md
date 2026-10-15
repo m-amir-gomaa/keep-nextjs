@@ -1,6 +1,6 @@
 # Noteweld — a connected writing workspace
 
-A private notes/checklist preview built with Next.js 16.3.4, React 19, Auth.js and PostgreSQL/Drizzle. This repository retains its original `keep-nextjs` GitHub identity. The old Vercel deployment is a historical version; it is not updated by this release.
+A private notes/checklist preview built with Next.js 16.3.8, React 19, Auth.js and PostgreSQL/Drizzle. This repository retains its original `keep-nextjs` GitHub identity. The old Vercel deployment is a historical version; it is not updated by this release.
 
 ## Implemented
 

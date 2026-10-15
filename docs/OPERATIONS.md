@@ -45,7 +45,7 @@ Compare counts, representative note/checklist content, labels and login/recovery
 
 ## Primary/installed references
 
-- Installed Next 16.3.4: `node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md`, proxy/error conventions and `03-api-reference/05-config/01-next-config-js/output.md`.
+- Installed Next 16.3.8: `node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md`, proxy/error conventions and `03-api-reference/05-config/01-next-config-js/output.md`.
 - [Drizzle transactions](https://orm.drizzle.team/docs/transactions), [Neon role access](https://neon.com/docs/manage/roles).
 - [Modal web servers](https://modal.com/docs/guide/webhooks), [image builds](https://modal.com/docs/guide/images), [secrets](https://modal.com/docs/guide/secrets), [volumes](https://modal.com/docs/guide/volumes).
 - [NIST password guidance](https://pages.nist.gov/800-63-4/sp800-63b.html): the 15-character new-password minimum follows password-only guidance; full NIST compliance is not claimed.
