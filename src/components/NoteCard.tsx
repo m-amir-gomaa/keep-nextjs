@@ -1,245 +1,407 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { Icons } from './Icons';
-import { ColorPicker } from './ColorPicker';
-import { LabelPicker } from './LabelPicker';
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import type { Note, ListItem } from "@/types";
+import { parseListItems } from "@/lib/note-content";
+import { ClientError, requestJSON } from "@/lib/client-api";
+import { useDraftGuard } from "./WorkspaceContext";
+import { Icons } from "./Icons";
+import { LabelPicker } from "./LabelPicker";
+import { ColorPicker } from "./ColorPicker";
+import { ChecklistEditor } from "./ChecklistEditor";
 
-interface Label { id: string; name: string; }
-
-export function NoteCard({ note, onUpdate }: { note: any, onUpdate: () => void }) {
-  const [isHovered, setIsHovered] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState(note.title);
-  const [editBody, setEditBody] = useState(note.body);
-  const [editColor, setEditColor] = useState(note.color || '');
-  const [editLabelIds, setEditLabelIds] = useState<string[]>(
-    (note.labels || []).map((l: Label) => l.id)
-  );
-  const modalRef = useRef<HTMLDivElement>(null);
-  const isDirtyRef = useRef(false);
-
+type Props = { note: Note; onUpdate: () => void };
+export function NoteCard({ note, onUpdate }: Props) {
+  const [editing, setEditing] = useState(false);
+  const [base, setBase] = useState(note);
+  const [title, setTitle] = useState(note.title);
+  const [body, setBody] = useState(note.body);
+  const [color, setColor] = useState(note.color);
+  const [labelIds, setLabelIds] = useState<string[]>([]);
+  const [items, setItems] = useState<ListItem[]>([]);
+  const [error, setError] = useState("");
+  const [failureStatus, setFailureStatus] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleInput = useRef<HTMLInputElement>(null);
+  const dirty =
+    editing &&
+    (title !== base.title ||
+      body !== base.body ||
+      color !== base.color ||
+      JSON.stringify([...labelIds].sort()) !==
+        JSON.stringify(base.labels.map((l) => l.id).sort()) ||
+      (base.isList &&
+        JSON.stringify(items) !==
+          JSON.stringify(parseListItems(base.listItems))));
+  useDraftGuard(dirty);
+  function fill(saved: Note) {
+    setBase(saved);
+    setTitle(saved.title);
+    setBody(saved.body);
+    setColor(saved.color);
+    setLabelIds(saved.labels.map((l) => l.id));
+    setItems(parseListItems(saved.listItems));
+    setError("");
+    setFailureStatus(0);
+  }
+  function open() {
+    if (note.deleted || pending.current) return;
+    fill(note);
+    setEditing(true);
+  }
   useEffect(() => {
-    setEditTitle(note.title);
-    setEditBody(note.body);
-    setEditColor(note.color || '');
-    setEditLabelIds((note.labels || []).map((l: Label) => l.id));
-  }, [note]);
-
-  useEffect(() => {
-    isDirtyRef.current = (
-      editTitle !== note.title ||
-      editBody !== note.body ||
-      editColor !== (note.color || '') ||
-      JSON.stringify(editLabelIds) !== JSON.stringify((note.labels || []).map((l: Label) => l.id))
-    );
-  }, [editTitle, editBody, editColor, editLabelIds, note]);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (isEditing && modalRef.current && !modalRef.current.contains(event.target as Node)) {
-        saveAndClose();
-      }
+    if (!editing) return;
+    const element = dialog.current;
+    if (!element) return;
+    element.showModal();
+    titleInput.current?.focus();
+    return () => {
+      if (element.open) element.close();
+    };
+  }, [editing]);
+  async function perform(action: () => Promise<void>) {
+    if (pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    setError("");
+    setFailureStatus(0);
+    try {
+      await action();
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "The operation failed. Retry without discarding your draft.",
+      );
+      setFailureStatus(e instanceof ClientError ? e.status : 0);
+    } finally {
+      pending.current = false;
+      setBusy(false);
     }
-    if (isEditing) {
-      document.addEventListener('mousedown', handleClickOutside);
+  }
+  async function saveAndClose() {
+    if (pending.current) return;
+    if (!dirty) {
+      setEditing(false);
+      return;
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditing, editTitle, editBody, editColor, editLabelIds]);
-
-  const saveAndClose = async () => {
-    if (isDirtyRef.current) {
-      await fetch(`/api/notes/${note.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+    await perform(async () => {
+      await requestJSON("/api/notes/" + base.id, {
+        method: "PATCH",
         body: JSON.stringify({
-          title: editTitle,
-          body: editBody,
-          color: editColor,
-          labelIds: editLabelIds,
-        })
+          title,
+          body,
+          color,
+          labelIds,
+          listItems: base.isList ? items : undefined,
+          expectedRevision: base.revision,
+        }),
+      });
+      setEditing(false);
+      onUpdate();
+    });
+  }
+  const change = (fields: object, method = "PATCH") =>
+    perform(async () => {
+      await requestJSON("/api/notes/" + note.id, {
+        method,
+        headers:
+          method === "DELETE" ? { "If-Match": String(note.revision) } : {},
+        body:
+          method === "PATCH"
+            ? JSON.stringify({ ...fields, expectedRevision: note.revision })
+            : undefined,
       });
       onUpdate();
+    });
+  const discard = () => {
+    if (
+      !dirty ||
+      window.confirm("Discard your unsaved changes to this note?")
+    ) {
+      setEditing(false);
+      setError("");
     }
-    setIsEditing(false);
   };
-
-  const handleCardClick = (e: React.MouseEvent) => {
-    if ((e.target as Element).closest('button, .label-picker-container')) return;
-    setIsEditing(true);
-  };
-
-  const togglePin = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    await fetch(`/api/notes/${note.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pinned: !note.pinned })
-    });
-    onUpdate();
-  };
-
-  const archiveNote = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    await fetch(`/api/notes/${note.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ archived: !note.archived })
-    });
-    onUpdate();
-  };
-
-  const deleteNote = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    await fetch(`/api/notes/${note.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deleted: true })
-    });
-    onUpdate();
-  };
-
-  const labels: Label[] = note.labels || [];
-
-  const cardBg = note.color || 'var(--surface-main)';
-  const modalBg = editColor || 'var(--surface-main)';
-
-  const modalContent = isEditing ? (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div
-        ref={modalRef}
-        style={{ backgroundColor: modalBg }}
-        className="w-full max-w-[600px] rounded-xl border border-[var(--border)] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-      >
-        <div className="flex flex-col p-4 pb-2">
-          <input
-            type="text"
-            className="w-full bg-transparent border-none outline-none text-[var(--text-primary)] font-medium text-base mb-3 placeholder:text-[var(--text-muted)]"
-            placeholder="Title"
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-          />
-          <textarea
-            className="w-full bg-transparent border-none outline-none text-[var(--text-primary)] text-sm placeholder:text-[var(--text-muted)] resize-none min-h-[100px]"
-            placeholder="Note"
-            value={editBody}
-            onChange={(e) => {
-              setEditBody(e.target.value);
-              e.target.style.height = 'inherit';
-              e.target.style.height = `${e.target.scrollHeight}px`;
-            }}
-          />
-        </div>
-
-        {/* Label chips inside modal */}
-        {editLabelIds.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 px-4 pb-2">
-            {(note.labels || [])
-              .filter((l: Label) => editLabelIds.includes(l.id))
-              .map((l: Label) => (
-                <span
-                  key={l.id}
-                  className="inline-flex items-center gap-1 text-[11px] bg-[rgba(0,0,0,0.12)] rounded-full px-3 py-0.5 border border-[var(--border)] text-[var(--text-secondary)]"
-                >
-                  {l.name}
-                </span>
-              ))}
-          </div>
-        )}
-
-        <div className="flex items-center justify-between px-2 py-2">
-          <div className="flex items-center gap-1 text-[var(--text-secondary)]">
-            <button className="icon-btn w-8 h-8"><Icons.Reminders className="w-5 h-5"/></button>
-            <button className="icon-btn w-8 h-8" onClick={archiveNote}><Icons.Archive className="w-5 h-5"/></button>
-            <div className="label-picker-container">
-              <LabelPicker selectedLabelIds={editLabelIds} onLabelsChange={setEditLabelIds} />
-            </div>
-            <ColorPicker currentColor={editColor} onColorSelect={setEditColor} />
-          </div>
-          <button
-            onClick={saveAndClose}
-            className="px-6 py-2 text-sm font-medium hover:bg-[rgba(255,255,255,0.04)] rounded-md transition-colors text-[var(--text-primary)]"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : null;
-
+  async function copyDraft() {
+    const content = [
+      title,
+      base.isList
+        ? items
+            .map((i) => "- [" + (i.isDone ? "x" : " ") + "] " + i.text)
+            .join("\n")
+        : body,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    try {
+      await navigator.clipboard.writeText(content);
+    } catch {
+      setError(
+        "Clipboard access was unavailable. Select and copy your draft text before reloading.",
+      );
+    }
+  }
+  const rows = parseListItems(note.listItems);
   return (
     <>
-      {isEditing && typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null}
-      <div
-        style={{ backgroundColor: cardBg }}
-        className="group relative hover:brightness-110 rounded-xl border border-[var(--border)] p-4 transition-all hover:shadow-md min-h-[120px] flex flex-col cursor-pointer"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        onClick={handleCardClick}
+      <article
+        data-note-id={note.id}
+        className="min-w-0 rounded-xl border border-[var(--border)] p-4 [overflow-wrap:anywhere]"
+        style={{ backgroundColor: note.color || "var(--surface-main)" }}
       >
-        {/* Pin Button */}
-        <div className={`absolute top-2 right-2 transition-opacity duration-200 ${isHovered || note.pinned ? 'opacity-100' : 'opacity-0'}`}>
-          <button
-            className="icon-btn bg-[var(--surface-overlay)] border border-[var(--border)] shadow-sm w-8 h-8"
-            onClick={togglePin}
-            aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
-          >
-            {note.pinned ? <Icons.PinFilled className="w-5 h-5 text-[var(--accent)]" /> : <Icons.Pin className="w-5 h-5" />}
-          </button>
-        </div>
-
-        {note.title && (
-          <h3 className="font-medium text-[16px] text-[var(--text-primary)] mb-2 pr-8 whitespace-pre-wrap">{note.title}</h3>
+        <button
+          type="button"
+          className="mb-2 block w-full text-left"
+          aria-label={"Open note " + (note.title || "Untitled")}
+          disabled={note.deleted || busy}
+          onClick={open}
+        >
+          <h3 className="font-medium">
+            {note.title || (note.isList ? "Checklist" : "Untitled")}
+          </h3>
+          {!note.isList && (
+            <p className="mt-2 line-clamp-6 whitespace-pre-wrap text-sm text-[var(--text-secondary)]">
+              {note.body}
+            </p>
+          )}
+        </button>
+        {note.isList && (
+          <ul className="space-y-2">
+            {rows.slice(0, 5).map((item, index) => (
+              <li key={index}>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={item.isDone}
+                    disabled={note.deleted || busy}
+                    aria-label={item.text}
+                    onChange={() => {
+                      const next = rows.map((v, i) =>
+                        i === index ? { ...v, isDone: !v.isDone } : { ...v },
+                      );
+                      void change({ listItems: JSON.stringify(next) });
+                    }}
+                  />
+                  <span
+                    className={item.isDone ? "line-through opacity-60" : ""}
+                  >
+                    {item.text}
+                  </span>
+                </label>
+              </li>
+            ))}
+            {rows.length > 5 && (
+              <li className="text-xs text-[var(--text-muted)]">
+                + {rows.length - 5} more items
+              </li>
+            )}
+          </ul>
         )}
-
-        {note.body && (
-          <div className="text-[14px] text-[var(--text-secondary)] whitespace-pre-wrap flex-1 leading-relaxed">{note.body}</div>
-        )}
-
-        {/* Label chips */}
-        {labels.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {labels.map((label) => (
+        {!!note.labels.length && (
+          <div className="mt-3 flex flex-wrap gap-1">
+            {note.labels.map((l) => (
               <span
-                key={label.id}
-                className="inline-flex items-center text-[11px] bg-[rgba(0,0,0,0.12)] rounded-full px-3 py-0.5 border border-[var(--border)] text-[var(--text-secondary)]"
+                key={l.id}
+                className="rounded-full border border-[var(--border)] px-2 py-1 text-xs"
               >
-                {label.name}
+                {l.name}
               </span>
             ))}
           </div>
         )}
-
-        {/* Action Bar */}
-        <div className={`flex items-center gap-1 mt-3 -ml-1 transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
-          <button className="icon-btn w-8 h-8" aria-label="Remind me"><Icons.Reminders className="w-4 h-4" /></button>
-          <button className="icon-btn w-8 h-8" onClick={archiveNote} aria-label={note.archived ? 'Unarchive' : 'Archive'}><Icons.Archive className="w-4 h-4" /></button>
-          <button className="icon-btn w-8 h-8" onClick={deleteNote} aria-label="Delete note"><Icons.Trash className="w-4 h-4" /></button>
-          <div className="label-picker-container" onClick={e => e.stopPropagation()}>
-            <LabelPicker
-              selectedLabelIds={(note.labels || []).map((l: Label) => l.id)}
-              onLabelsChange={async (labelIds) => {
-                await fetch(`/api/notes/${note.id}`, {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ labelIds })
-                });
-                onUpdate();
-              }}
-            />
+        {error && !editing && (
+          <div role="alert" className="mt-3 text-sm text-red-300">
+            {error}
+            <button type="button" className="ml-2 underline" onClick={onUpdate}>
+              Refresh saved notes
+            </button>
           </div>
-          <ColorPicker currentColor={note.color} onColorSelect={async (c) => {
-            await fetch(`/api/notes/${note.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ color: c })
-            });
-            onUpdate();
-          }} />
-          <button className="icon-btn w-8 h-8 ml-auto" aria-label="More"><Icons.Menu className="w-4 h-4" /></button>
+        )}
+        <div className="mt-3 flex flex-wrap gap-1">
+          {note.deleted ? (
+            <>
+              <button
+                type="button"
+                disabled={busy}
+                className="rounded-lg px-2 py-2 text-sm"
+                onClick={() => void change({ deleted: false })}
+              >
+                Restore
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                className="rounded-lg px-2 py-2 text-sm text-red-300"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Permanently delete this note? This cannot be undone.",
+                    )
+                  )
+                    void change({}, "DELETE");
+                }}
+              >
+                Delete forever
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="icon-btn"
+                disabled={busy}
+                aria-label={note.pinned ? "Unpin note" : "Pin note"}
+                onClick={() => void change({ pinned: !note.pinned })}
+              >
+                {note.pinned ? <Icons.PinFilled /> : <Icons.Pin />}
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                disabled={busy}
+                aria-label={note.archived ? "Unarchive" : "Archive"}
+                onClick={() => void change({ archived: !note.archived })}
+              >
+                <Icons.Archive />
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                disabled={busy}
+                aria-label="Move to trash"
+                onClick={() => void change({ deleted: true })}
+              >
+                <Icons.Trash />
+              </button>
+            </>
+          )}
         </div>
-      </div>
+      </article>
+      {editing &&
+        createPortal(
+          <dialog
+            ref={dialog}
+            aria-label="Edit note"
+            className="m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-[600px] overflow-y-auto rounded-xl border border-[var(--border)] p-0 text-[var(--text-primary)] shadow-2xl backdrop:bg-black/60"
+            style={{ backgroundColor: color || "var(--surface-overlay)" }}
+            onCancel={(e) => {
+              e.preventDefault();
+              void saveAndClose();
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) void saveAndClose();
+            }}
+          >
+            <div className="p-4">
+              <h2 className="mb-4 text-sm font-semibold text-[var(--text-secondary)]">
+                Edit note{dirty ? " · unsaved changes" : ""}
+              </h2>
+              <fieldset disabled={busy} className="min-w-0 space-y-3">
+                <label className="block text-sm">
+                  Title
+                  <input
+                    ref={titleInput}
+                    type="text"
+                    aria-label="Note title"
+                    placeholder="Title"
+                    maxLength={200}
+                    className="input-ghost mt-1 w-full rounded-lg border border-[var(--border)] p-2"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
+                </label>
+                {base.isList ? (
+                  <ChecklistEditor items={items} onChange={setItems} />
+                ) : (
+                  <label className="block text-sm">
+                    Note
+                    <textarea
+                      aria-label="Note body"
+                      placeholder="Note"
+                      maxLength={100000}
+                      className="input-ghost mt-1 min-h-48 w-full resize-y rounded-lg border border-[var(--border)] p-2"
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                    />
+                  </label>
+                )}
+                <div className="flex gap-2">
+                  <LabelPicker
+                    selectedLabelIds={labelIds}
+                    onLabelsChange={setLabelIds}
+                  />
+                  <ColorPicker currentColor={color} onColorSelect={setColor} />
+                </div>
+                {error && (
+                  <div role="alert" className="text-sm text-red-300">
+                    {error}
+                    {failureStatus === 401 && (
+                      <a
+                        href="/auth/signin"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-2 underline"
+                      >
+                        Sign in in another tab
+                      </a>
+                    )}
+                  </div>
+                )}
+                {error && (
+                  <div className="flex flex-wrap gap-3 text-sm">
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={copyDraft}
+                    >
+                      Copy draft
+                    </button>
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "Replace this draft with the latest saved note? Copy your draft first if you want to keep it.",
+                          )
+                        )
+                          void perform(async () => {
+                            const saved = await requestJSON<Note>(
+                              "/api/notes/" + base.id,
+                            );
+                            fill(saved);
+                            onUpdate();
+                          });
+                      }}
+                    >
+                      Reload saved version
+                    </button>
+                  </div>
+                )}
+                <div className="flex flex-wrap justify-end gap-3 border-t border-[var(--border)] pt-3">
+                  <button
+                    type="button"
+                    className="rounded-lg px-3 py-2 text-sm"
+                    onClick={discard}
+                  >
+                    Discard changes
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-black"
+                    onClick={() => void saveAndClose()}
+                  >
+                    {busy ? "Saving…" : "Save & close"}
+                  </button>
+                </div>
+              </fieldset>
+            </div>
+          </dialog>,
+          document.body,
+        )}
     </>
   );
 }

@@ -1,55 +1,94 @@
 "use client";
-import React, { useState } from 'react';
-import { Icons } from './Icons';
+import Link from "next/link";
+import { Icons } from "./Icons";
+import { useDashboardSearch } from "./DashboardSearchContext";
 
-export function Header({ toggleSidebar }: { toggleSidebar: () => void }) {
-  const [searchValue, setSearchValue] = useState('');
-  const [isFocused, setIsFocused] = useState(false);
-
+type Props = {
+  toggleSidebar: () => void;
+  sidebarOpen?: boolean;
+  searchable?: boolean;
+  onRefresh: () => void;
+  refreshing?: boolean;
+  onSignOut: () => void;
+  signingOut?: boolean;
+};
+export function Header({
+  toggleSidebar,
+  sidebarOpen,
+  searchable = true,
+  onRefresh,
+  refreshing,
+  onSignOut,
+  signingOut,
+}: Props) {
+  const { query, setQuery } = useDashboardSearch();
   return (
-    <header className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] h-[64px]">
-      <div className="flex items-center gap-2 w-60 shrink-0">
-        <button 
-          onClick={toggleSidebar} 
+    <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--border)] px-3 py-2">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={toggleSidebar}
           className="icon-btn"
           aria-label="Main menu"
+          aria-expanded={sidebarOpen}
+          aria-controls="workspace-navigation"
         >
           <Icons.Menu />
         </button>
-        <div className="flex items-center gap-1 cursor-pointer">
-          {/* Logo can go here */}
-          <span className="text-xl text-[var(--text-primary)] pl-1">Keep Next</span>
-        </div>
+        <Link
+          href="/dashboard"
+          className="text-xl font-semibold tracking-tight"
+        >
+          Noteweld<span className="sr-only"> home</span>
+        </Link>
       </div>
-
-      <div className="flex-1 max-w-[720px] px-2">
-        <div className={`flex items-center h-12 px-3 rounded-xl transition-colors ${
-          isFocused ? 'bg-[var(--surface-overlay)] shadow-md' : 'bg-[var(--hover-main)]'
-        }`}>
-          <button className="icon-btn" aria-label="Search">
+      <div className="ml-auto flex items-center gap-1 sm:order-3">
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="Refresh notes and labels"
+          disabled={refreshing}
+          onClick={onRefresh}
+        >
+          <Icons.Refresh />
+        </button>
+        <button
+          type="button"
+          className="rounded-lg px-3 py-2 text-sm hover:bg-[var(--hover-main)]"
+          onClick={onSignOut}
+          disabled={signingOut}
+        >
+          {signingOut ? "Signing out…" : "Sign out"}
+        </button>
+      </div>
+      {searchable && (
+        <div className="flex min-w-0 basis-full items-center gap-2 rounded-xl bg-[var(--surface-main)] px-3 py-1 sm:order-2 sm:ml-6 sm:basis-0 sm:flex-1 sm:max-w-[720px]">
+          <span
+            aria-hidden="true"
+            className="shrink-0 text-[var(--text-muted)]"
+          >
             <Icons.Search />
-          </button>
+          </span>
           <input
-            type="text"
-            className="flex-1 h-full px-3 input-ghost font-medium"
-            placeholder="Search"
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
+            type="search"
+            className="input-ghost h-10 min-w-0 flex-1"
+            placeholder="Search notes…"
+            aria-label="Search notes"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
           />
-          {searchValue && (
-            <button className="icon-btn" onClick={() => setSearchValue('')}>
+          {query && (
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="Clear search"
+              onClick={() => setQuery("")}
+            >
               <Icons.Clear />
             </button>
           )}
         </div>
-      </div>
-
-      <div className="flex items-center gap-1 pr-2 shrink-0">
-        <button className="icon-btn" aria-label="Refresh"><Icons.Refresh /></button>
-        <button className="icon-btn" aria-label="Settings"><Icons.Settings /></button>
-      </div>
+      )}
     </header>
   );
 }

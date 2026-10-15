@@ -1,10 +1,18 @@
+import { lockAccount, noteCapacity } from "@/lib/capacity";
+import { createHash } from "node:crypto";
+import { ApiError, endpoint, readJSON } from "@/lib/api";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { notes, noteLabels, labels } from "@/db/schema";
 import { auth } from "@/lib/auth";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
+import {
+  parseNoteInput,
+  NoteInputError,
+  type NoteInput,
+} from "@/lib/note-input";
 
-export async function GET() {
+export const GET = endpoint(async () => {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -13,64 +21,110 @@ export async function GET() {
   const userId = session.user.id;
 
   const allNotes = await db.query.notes.findMany({
-    where: (notes, { eq, and }) => and(eq(notes.userId, userId), eq(notes.deleted, false), eq(notes.archived, false)),
+    where: (notes, { eq, and }) =>
+      and(
+        eq(notes.userId, userId),
+        eq(notes.deleted, false),
+        eq(notes.archived, false),
+      ),
     orderBy: (notes, { desc }) => [desc(notes.pinned), desc(notes.updatedAt)],
     with: {
       noteLabels: {
         with: {
-          label: true
-        }
-      }
-    }
+          label: true,
+        },
+      },
+    },
   });
 
-  const formattedNotes = allNotes.map(n => ({
+  const formattedNotes = allNotes.map((n) => ({
     ...n,
-    labels: n.noteLabels.map(nl => nl.label)
+    labels: n.noteLabels.map((nl) => nl.label),
   }));
 
   return NextResponse.json(formattedNotes);
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = endpoint(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await req.json();
-  const { title = "", body: noteBody = "", color = "", pinned = false, labelIds = [] } = body;
-
-  if (!title.trim() && !noteBody.trim()) {
-    return NextResponse.json({ error: "Note cannot be empty" }, { status: 400 });
-  }
-
-  const result = await db.insert(notes).values({
-    title: title.trim(),
-    body: noteBody.trim(),
-    color,
-    pinned,
-    userId: session.user.id,
-  }).returning();
-
-  const noteId = result[0].id;
-  
-  if (labelIds.length > 0) {
-    await db.insert(noteLabels).values(
-      labelIds.map((id: string) => ({ noteId, labelId: id }))
+  if (!session?.user?.id)
+    throw new ApiError(
+      401,
+      "Sign in to save your note. Your draft has not been discarded.",
     );
+  const userId = session.user.id;
+  let input: NoteInput;
+  try {
+    input = parseNoteInput(await readJSON(req), "create");
+  } catch (e) {
+    if (e instanceof NoteInputError) throw new ApiError(400, e.message);
+    throw e;
   }
-
-  // fetch with labels
-  const finalNote = await db.query.notes.findFirst({
-    where: eq(notes.id, noteId),
-    with: { noteLabels: { with: { label: true } } }
+  const { labelIds = [], ...noteData } = input;
+  const key = req.headers.get("idempotency-key") || crypto.randomUUID();
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)
+  )
+    throw new ApiError(400, "Choose a valid save request identifier.");
+  const fingerprint = createHash("sha256")
+    .update(JSON.stringify({ ...noteData, labelIds: [...labelIds].sort() }))
+    .digest("hex");
+  let replay = false;
+  const result = await db.transaction(async (tx) => {
+    await lockAccount(tx, userId);
+    const previous = await tx.query.notes.findFirst({
+      where: and(eq(notes.userId, userId), eq(notes.creationKey, key)),
+      with: { noteLabels: { with: { label: true } } },
+    });
+    if (previous) {
+      if (previous.creationHash !== fingerprint)
+        throw new ApiError(
+          409,
+          "An earlier save already completed with different content. Refresh saved notes before starting a separate note.",
+        );
+      replay = true;
+      return previous;
+    }
+    await noteCapacity(tx, userId, noteData);
+    if (labelIds.length) {
+      const owned = await tx
+        .select({ id: labels.id })
+        .from(labels)
+        .where(and(eq(labels.userId, userId), inArray(labels.id, labelIds)));
+      if (owned.length !== labelIds.length)
+        throw new ApiError(400, "Choose labels belonging to this account.");
+    }
+    const noteId = crypto.randomUUID();
+    const inserted = await tx
+      .insert(notes)
+      .values({
+        ...noteData,
+        id: noteId,
+        userId,
+        creationKey: key,
+        creationHash: fingerprint,
+      })
+      .onConflictDoNothing({ target: [notes.userId, notes.creationKey] })
+      .returning({ id: notes.id });
+    if (inserted.length) {
+      if (labelIds.length)
+        await tx
+          .insert(noteLabels)
+          .values(labelIds.map((labelId) => ({ noteId, labelId })));
+    } else replay = true;
+    const saved = await tx.query.notes.findFirst({
+      where: and(eq(notes.userId, userId), eq(notes.creationKey, key)),
+      with: { noteLabels: { with: { label: true } } },
+    });
+    if (!saved || saved.creationHash !== fingerprint)
+      throw new ApiError(
+        409,
+        "An earlier save already completed with different content. Refresh saved notes before starting a separate note.",
+      );
+    return saved;
   });
-
-  const formattedNote = {
-    ...finalNote,
-    labels: finalNote?.noteLabels.map(nl => nl.label)
-  };
-
-  return NextResponse.json(formattedNote, { status: 201 });
-}
+  return NextResponse.json(
+    { ...result, labels: result.noteLabels.map((link) => link.label) },
+    { status: replay ? 200 : 201 },
+  );
+});

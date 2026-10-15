@@ -8,6 +8,34 @@
       "when": 1789307963365,
       "tag": "0000_ancient_peter_parker",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791799245919,
+      "tag": "0001_note_checklists",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792091944424,
+      "tag": "0002_noteweld_reliability",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792092638979,
+      "tag": "0003_note_save_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792093624700,
+      "tag": "0004_account_recovery_and_limits",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,11 @@ export interface NoteLabel {
   };
 }
 
+export interface ListItem {
+  text: string;
+  isDone: boolean;
+}
+
 export interface Note {
   id: string;
   title: string;
@@ -31,7 +36,11 @@ export interface Note {
   createdAt: Date | string;
   updatedAt: Date | string;
   userId: string;
+  revision: number;
   noteLabels: NoteLabel[];
+  labels: Label[];
+  isList: boolean;
+  listItems: string | ListItem[] | null;
 }
 
 export interface Label {

@@ -1,30 +1,18 @@
-"use client";
-import React, { useState, useEffect } from "react";
-import { Header } from "@/components/Header";
-import { Sidebar } from "@/components/Sidebar";
+import React from "react";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import ClientLayout from "./ClientLayout";
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [labels, setLabels] = useState<any[]>([]);
+export default async function DashboardServerLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const session = await auth();
 
-  useEffect(() => {
-    fetch('/api/labels')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setLabels(data);
-      })
-      .catch(console.error);
-  }, []);
+  if (!session?.user) {
+    redirect("/auth/signin");
+  }
 
-  return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-[var(--bg-main)]">
-      <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
-      <div className="flex flex-1 overflow-hidden relative">
-        <Sidebar isOpen={isSidebarOpen} labels={labels} />
-        <main className="flex-1 overflow-y-auto">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
+  return <ClientLayout>{children}</ClientLayout>;
 }
