@@ -16,10 +16,11 @@ const valid = {
   password: " a secure password ",
   name: " Person ",
 };
+const origin = process.env.AUTH_URL || "http://localhost";
 const request = (body) =>
-  new Request("http://localhost/api/auth/register", {
+  new Request(origin + "/api/auth/register", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+    headers: { "Content-Type": "application/json", Origin: origin },
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
 

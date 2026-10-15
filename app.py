@@ -3,7 +3,7 @@ from pathlib import Path
 import json
 import os
 import subprocess
-from datetime import datetime, timedelta, timezone
+import noteweld_runtime as runtime
 import modal
 
 app = modal.App("noteweld")
@@ -24,7 +24,8 @@ image = (
     image.add_local_dir(root / "src", "/app/src", copy=True)
     .add_local_dir(root / "public", "/app/public", copy=True)
     .add_local_file(root / "scripts/operations.mjs", "/app/operations.mjs", copy=True)
-    .env({"NEXT_TELEMETRY_DISABLED": "1"})
+    .add_local_file(root / "noteweld_runtime.py", "/app/noteweld_runtime.py", copy=True)
+    .env({"NEXT_TELEMETRY_DISABLED": "1", "PYTHONPATH": "/app"})
     .run_commands(
         "DATABASE_URL=postgresql://build:build@127.0.0.1:1/noteweld_build AUTH_SECRET=nonfunctional-build-value-not-a-runtime-secret AUTH_URL=http://localhost:3000 npm run build",
         "mkdir -p public .next/standalone/.next && cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static && cp operations.mjs .next/standalone/operations.mjs",
@@ -32,51 +33,13 @@ image = (
     )
 )
 
-@app.function(image=image, secrets=[secret], cpu=(0.25, 2), memory=1536,
-              max_containers=1, min_containers=0, scaledown_window=10, timeout=300,
-              region="us-east", include_source=False)
-@modal.concurrent(max_inputs=20)
-@modal.web_server(3000, startup_timeout=60)
-def web_app():
-    subprocess.Popen(["node", "server.js"], cwd="/app/.next/standalone",
-                     env={**os.environ, "HOSTNAME": "0.0.0.0", "PORT": "3000"})
-
-def owner_command(action):
-    result = subprocess.run(["node", "operations.mjs", action], cwd="/app/.next/standalone", capture_output=True, check=False)
-    if result.returncode:
-        raise RuntimeError("Owner operation failed; inspect configuration privately.")
-    return result.stdout
-
-def encrypted_snapshot():
-    from cryptography.fernet import Fernet
-    return Fernet(os.environ["BACKUP_KEY"].encode()).encrypt(owner_command("snapshot"))
-
-@app.function(image=image, secrets=[secret], volumes={"/backups": backups},
-              schedule=modal.Cron("23 2 * * *"), cpu=(0.125, 1), memory=1024,
-              max_containers=1, timeout=180, include_source=False)
-def maintenance():
-    backups.reload()
-    report = json.loads(owner_command("cleanup"))
-    now = datetime.now(timezone.utc)
-    path = Path("/backups") / ("noteweld-" + now.strftime("%Y%m%d") + ".fernet")
-    path.write_bytes(encrypted_snapshot())
-    path.chmod(0o600)
-    cutoff = now - timedelta(days=7)
-    for old in Path("/backups").glob("noteweld-????????.fernet"):
-        try:
-            date = datetime.strptime(old.stem.removeprefix("noteweld-"), "%Y%m%d").replace(tzinfo=timezone.utc)
-            if date <= cutoff:
-                old.unlink()
-        except ValueError:
-            continue
-    backups.commit()
-    return {**report, "encryptedSnapshot": True}
-
-@app.function(image=image, secrets=[secret], cpu=(0.125, 1), memory=1024,
-              max_containers=1, timeout=180, include_source=False)
-def operations(action: str):
-    if action == "report":
-        return json.loads(owner_command("report"))
-    if action == "snapshot":
-        return encrypted_snapshot()
-    raise ValueError("Choose report or snapshot")
+web_app = app.function(image=image, secrets=[secret], cpu=(0.25, 2), memory=1536,
+                       max_containers=1, min_containers=0, scaledown_window=10,
+                       timeout=300, region="us-east", include_source=False)(
+    modal.concurrent(max_inputs=20)(modal.web_server(3000, startup_timeout=60)(runtime.web_app))
+)
+maintenance = app.function(image=image, secrets=[secret], volumes={"/backups": backups},
+                           schedule=modal.Cron("23 2 * * *"), cpu=(0.125, 1), memory=1024,
+                           max_containers=1, timeout=180, include_source=False)(runtime.maintenance)
+operations = app.function(image=image, secrets=[secret], cpu=(0.125, 1), memory=1024,
+                         max_containers=1, timeout=180, include_source=False)(runtime.operations)
