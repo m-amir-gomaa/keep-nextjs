@@ -50,3 +50,5 @@ Tests do not capture authentication screenshots, traces or video. Optional `NOTE
 `app.py` builds from an explicit source allowlist on a digest-pinned official Node image, using `npm ci`. It never uploads `.env`, `.local` or the whole workspace. Only Next's standalone runtime, static assets and owner tooling run in the cloud. `requirements-operations.txt` pins the Modal/crypto SDKs. See [operations](docs/OPERATIONS.md) for isolated roles, deployment, backup/restore and rollback.
 
 `src/app/api/` owns runtime validation/auth boundaries. `src/components/WorkspaceContext.tsx` owns label/draft coordination; `useNotes` ignores stale requests. `src/db/migrations/` holds forward migrations, including legacy-collision protection. Existing source/working changes were preserved before this foundation was implemented; there is no automatic merge/delete of conflicting legacy accounts.
+
+The point-in-time runtime audit is clean after the 16.3.8 security patches. Development-only glob/esbuild advisories and their exact boundaries are recorded in [release evidence](docs/RELEASE.md); the full dependency graph is not claimed vulnerability-free.
