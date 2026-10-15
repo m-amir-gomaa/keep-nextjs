@@ -39,7 +39,7 @@ jobs:
         with:
           node-version: '24.19.0'
           cache: npm
-      - run: npm ci
+      - run: npm ci --no-audit --no-fund
       - run: node scripts/isolated.mjs migrate
       - run: npm run lint
       - run: npm run typecheck

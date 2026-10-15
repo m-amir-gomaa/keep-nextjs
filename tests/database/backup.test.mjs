@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
+pg.types.setTypeParser(1114, (value) => new Date(value + "Z"));
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { testDatabaseURL } from "../helpers/database.mjs";
@@ -30,12 +31,31 @@ test("logical snapshot restores into an empty clone and refuses to overwrite it"
     target = new pg.Pool({ connectionString: url.href });
     await migrate(drizzle(target), { migrationsFolder: "src/db/migrations" });
     await restoreEmptyDatabase(target, snapshot);
-    for (const table of ["user", "note", "label", "note_label"])
+    for (const table of ["user", "note", "label", "note_label"]) {
       assert.equal(
         (await target.query('SELECT count(*)::int AS n FROM "' + table + '"'))
           .rows[0].n,
         snapshot.tables[table].length,
       );
+      const saved = (await target.query('SELECT * FROM "' + table + '"')).rows;
+      const canonical = (rows) =>
+        rows
+          .map((row) =>
+            JSON.stringify(
+              Object.fromEntries(
+                Object.keys(row)
+                  .sort()
+                  .map((key) => [key, row[key]]),
+              ),
+            ),
+          )
+          .sort();
+      assert.deepEqual(
+        canonical(saved),
+        canonical(snapshot.tables[table]),
+        "All fields, including UTC timestamps, must roundtrip",
+      );
+    }
     if (snapshot.tables.user.length)
       await assert.rejects(
         () => restoreEmptyDatabase(target, snapshot),

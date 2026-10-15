@@ -1,5 +1,8 @@
 // Owner-only process. Never expose this script through a public HTTP route.
 import pg from "pg";
+// Application timestamp-without-time-zone columns represent UTC. Keep dumps
+// independent of the owner machine's locale as well as the cloud runtime.
+pg.types.setTypeParser(1114, (value) => new Date(value + "Z"));
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   max: 1,
