@@ -113,6 +113,8 @@ export default function CodeEditor(props: Props) {
           EditorView.lineWrapping,
           placeholder("Write Markdown. Your notes, your words."),
           EditorView.contentAttributes.of({
+            // Keep the editable region an explicit tab stop, including read-only states.
+            tabindex: "0",
             "aria-label": "Note body",
             "aria-multiline": "true",
             role: "textbox",
