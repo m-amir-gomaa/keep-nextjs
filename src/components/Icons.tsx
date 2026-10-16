@@ -1,6 +1,9 @@
 import React from 'react';
 
 export const Icons = {
+  Graph: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.6" {...props}><path d="m7 6 9 5M7 6l1 12m0 0 10-6"/><circle cx="6" cy="5" r="3"/><circle cx="19" cy="12" r="3"/><circle cx="8" cy="20" r="3"/></svg>
+  ),
   Menu: (props: React.SVGProps<SVGSVGElement>) => (
     <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24" fill="currentColor" {...props}><path d="M120-240v-80h720v80H120Zm0-200v-80h720v80H120Zm0-200v-80h720v80H120Z"/></svg>
   ),

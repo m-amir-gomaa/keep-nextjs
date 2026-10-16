@@ -18,6 +18,7 @@ export function Sidebar({
   const pathname = usePathname();
   const items = [
     { name: "Notes", path: "/dashboard", icon: Icons.Notes },
+    { name: "Graph", path: "/dashboard/graph", icon: Icons.Graph },
     ...labels.map((label) => ({
       name: label.name,
       path: "/dashboard/label/" + encodeURIComponent(label.id),

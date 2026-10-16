@@ -31,6 +31,7 @@ export type EditorStatus = {
   vimMode: string;
 };
 export type EditorControls = {
+  insert: (text: string) => void;
   undo: () => void;
   redo: () => void;
   search: () => void;
@@ -178,6 +179,15 @@ export default function CodeEditor(props: Props) {
       if (!latest.current.disabled) latest.current.onSave();
     });
     latest.current.onReady({
+      insert: (text) => {
+        if (latest.current.disabled) return;
+        view.dispatch({
+          ...view.state.replaceSelection(text),
+          scrollIntoView: true,
+          annotations: Transaction.userEvent.of("input.link"),
+        });
+        view.focus();
+      },
       undo: () => {
         if (!latest.current.disabled) undo(view);
         view.focus();

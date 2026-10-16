@@ -29,6 +29,9 @@ const recoverRoute = load(
   resolve(projectRoot, "src/app/api/auth/recover/route"),
 );
 const rate = load(resolve(projectRoot, "src/lib/rate-limit"));
+const knowledgeRoute = load(
+  resolve(projectRoot, "src/app/api/knowledge/route"),
+);
 const nonce = randomUUID();
 const ids = [];
 const origin = process.env.AUTH_URL || "http://localhost:3000";
@@ -362,4 +365,46 @@ test("concurrent case-variant labels have one winner and clear duplicate errors"
   );
   assert.equal(responses.filter((r) => r.status === 201).length, 1);
   assert.equal(responses.filter((r) => r.status === 409).length, 2);
+});
+
+test("actual connection metadata includes own archive, excludes trash/foreign notes and retains stable link identity", async () => {
+  const target = randomUUID(),
+    source = randomUUID(),
+    trashed = randomUUID(),
+    foreign = randomUUID();
+  const other = ids.find((id) => id !== owner);
+  assert.ok(other);
+  await pool.query(
+    "INSERT INTO note(id,user_id,title,body,archived,deleted) VALUES ($1,$2,'Connection target','',true,false),($3,$2,'Connection source',$4,false,false),($5,$2,'Trashed secret','',false,true),($6,$7,'Foreign secret','',false,false)",
+    [
+      target,
+      owner,
+      source,
+      `[[note:${target}|target]] [[note:${foreign}|unavailable]]`,
+      trashed,
+      foreign,
+      other,
+    ],
+  );
+  const response = await knowledgeRoute.GET();
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.ok(data.notes.some((note) => note.id === target && note.archived));
+  assert.ok(!data.notes.some((note) => [trashed, foreign].includes(note.id)));
+  const metadata = data.notes.find((note) => note.id === source);
+  assert.equal(metadata.references[0].target, "note:" + target);
+  assert.ok(
+    !("body" in metadata) &&
+      !("userId" in metadata) &&
+      !("creationKey" in metadata),
+  );
+  assert.ok(!JSON.stringify(data).includes("Foreign secret"));
+  await pool.query("UPDATE note SET title='Renamed target' WHERE id=$1", [
+    target,
+  ]);
+  const renamed = await (await knowledgeRoute.GET()).json();
+  assert.equal(
+    renamed.notes.find((note) => note.id === source).references[0].target,
+    "note:" + target,
+  );
 });

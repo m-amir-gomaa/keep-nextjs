@@ -18,6 +18,8 @@ type Workspace = {
   labelError: string;
   refreshing: boolean;
   version: number;
+  noteVersion: number;
+  refreshNotes: () => void;
   refresh: () => void;
   putLabel: (label: Label) => void;
   removeLabel: (id: string) => void;
@@ -33,6 +35,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   } | null>(null);
   const [settledVersion, setSettledVersion] = useState(-1);
   const [version, setVersion] = useState(0);
+  const [noteVersion, setNoteVersion] = useState(0);
+  const refreshNotes = useCallback(() => setNoteVersion((old) => old + 1), []);
   const sequence = useRef(0);
   const drafts = useRef(new Set<string>());
   const router = useRouter();
@@ -107,7 +111,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       e.preventDefault();
       e.stopPropagation();
       if (canLeave()) {
-        drafts.current.clear();
         if (anchor.origin === location.origin)
           router.push(anchor.pathname + anchor.search + anchor.hash);
         else location.assign(anchor.href);
@@ -145,6 +148,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         labelError,
         refreshing,
         version,
+        noteVersion,
+        refreshNotes,
         refresh,
         putLabel,
         removeLabel,

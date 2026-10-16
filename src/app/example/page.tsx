@@ -15,6 +15,9 @@ export default function ExamplePage() {
         <Link href="/" className="text-xl font-semibold">
           Noteweld<span className="text-[var(--accent)]">.</span>
         </Link>
+        <Link href="/example/graph" className="text-sm underline">
+          Explore connections
+        </Link>
         <Link
           href="/auth/signin"
           className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm"

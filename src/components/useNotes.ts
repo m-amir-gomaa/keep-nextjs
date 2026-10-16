@@ -7,13 +7,10 @@ import { useWorkspace } from "./WorkspaceContext";
 type Snapshot = { key: string; path: string; notes: Note[]; error: string };
 export function useNotes(path: string) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [localVersion, setVersion] = useState(0);
-  const { version } = useWorkspace();
+  const { version, noteVersion, refreshNotes } = useWorkspace();
   const sequence = useRef(0);
-  const key = path + ":" + version + ":" + localVersion;
-  const reload = useCallback(() => {
-    setVersion((v) => v + 1);
-  }, []);
+  const key = path + ":" + version + ":" + noteVersion;
+  const reload = useCallback(() => refreshNotes(), [refreshNotes]);
   useEffect(() => {
     const id = ++sequence.current;
     const controller = new AbortController();

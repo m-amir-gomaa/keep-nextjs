@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import dynamic from "next/dynamic";
 import type { Note, ListItem } from "@/types";
 import { parseListItems } from "@/lib/note-content";
 import { ClientError, requestJSON } from "@/lib/client-api";
@@ -11,8 +12,11 @@ import { ColorPicker } from "./ColorPicker";
 import { ChecklistEditor } from "./ChecklistEditor";
 import { MarkdownEditor } from "./MarkdownEditor";
 
-type Props = { note: Note; onUpdate: () => void };
-export function NoteCard({ note, onUpdate }: Props) {
+const ConnectionsPanel = dynamic(() => import("./ConnectionsPanel"), {
+  loading: () => <p role="status">Loading connections…</p>,
+});
+type Props = { note: Note; onUpdate: () => void; detail?: boolean };
+export function NoteCard({ note, onUpdate, detail = false }: Props) {
   const [editing, setEditing] = useState(false);
   const [base, setBase] = useState(note);
   const [title, setTitle] = useState(note.title);
@@ -24,6 +28,7 @@ export function NoteCard({ note, onUpdate }: Props) {
   const [failureStatus, setFailureStatus] = useState(0);
   const [busy, setBusy] = useState(false);
   const [editorVersion, setEditorVersion] = useState(0);
+  const [connectionsOpen, setConnectionsOpen] = useState(false);
   const pending = useRef(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
@@ -158,14 +163,18 @@ export function NoteCard({ note, onUpdate }: Props) {
         <button
           type="button"
           className="mb-2 block w-full text-left"
-          aria-label={"Open note " + (note.title || "Untitled")}
+          aria-label={
+            detail ? "Edit note" : "Open note " + (note.title || "Untitled")
+          }
           disabled={note.deleted || busy}
           onClick={open}
         >
           <h3 className="font-medium">
-            {note.title || (note.isList ? "Checklist" : "Untitled")}
+            {detail
+              ? "Edit note"
+              : note.title || (note.isList ? "Checklist" : "Untitled")}
           </h3>
-          {!note.isList && (
+          {!note.isList && !detail && (
             <p className="mt-2 line-clamp-6 whitespace-pre-wrap text-sm text-[var(--text-secondary)]">
               {note.body}
             </p>
@@ -173,7 +182,7 @@ export function NoteCard({ note, onUpdate }: Props) {
         </button>
         {note.isList && (
           <ul className="space-y-2">
-            {rows.slice(0, 5).map((item, index) => (
+            {(detail ? rows : rows.slice(0, 5)).map((item, index) => (
               <li key={index}>
                 <label className="flex items-start gap-2 text-sm">
                   <input
@@ -196,7 +205,7 @@ export function NoteCard({ note, onUpdate }: Props) {
                 </label>
               </li>
             ))}
-            {rows.length > 5 && (
+            {!detail && rows.length > 5 && (
               <li className="text-xs text-[var(--text-muted)]">
                 + {rows.length - 5} more items
               </li>
@@ -337,6 +346,7 @@ export function NoteCard({ note, onUpdate }: Props) {
                     disabled={busy}
                     onSave={() => void saveAndClose(false)}
                     dirty={dirty}
+                    currentId={base.id}
                   />
                 )}
                 <div className="flex gap-2">
@@ -346,6 +356,19 @@ export function NoteCard({ note, onUpdate }: Props) {
                   />
                   <ColorPicker currentColor={color} onColorSelect={setColor} />
                 </div>
+                {!base.isList && (
+                  <details
+                    className="note-connections-disclosure"
+                    onToggle={(event) =>
+                      setConnectionsOpen(event.currentTarget.open)
+                    }
+                  >
+                    <summary>Links and backlinks</summary>
+                    {connectionsOpen && (
+                      <ConnectionsPanel noteId={base.id} body={body} />
+                    )}
+                  </details>
+                )}
                 {error && (
                   <div role="alert" className="text-sm text-red-300">
                     {error}

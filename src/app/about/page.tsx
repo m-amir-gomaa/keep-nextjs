@@ -13,8 +13,8 @@ export default function About() {
         checklists. It is limited to 100 accounts, 250 notes, 50 labels and 2
         MiB of note text per account. Billing is closed. Markdown writing,
         preview, optional Vim keys, in-session undo, search and Markdown
-        downloads are included. Backlinks, a graph and source-bundle imports are
-        planned.
+        downloads, stable wiki links, backlinks and a filterable note graph are
+        included. Source-bundle imports are planned.
       </p>
       <h2 className="text-xl">Your data</h2>
       <p>
@@ -46,6 +46,18 @@ export default function About() {
         does not upload or save its scratchpad to an account.
       </p>
       <h2 className="text-xl">Recovery, export and deletion</h2>
+      <p>
+        Connections are derived from saved notes in your own account, including
+        archive and excluding Trash. Guessed IDs from another account remain
+        unavailable. Title links can become ambiguous or unavailable; stable ID
+        links survive renames. Graphs are bounded to 500 nodes and 1,000 edges,
+        with at most 256 wiki references per note. Refresh connections to see
+        changes from another tab. The original notes in the{" "}
+        <Link href="/example/graph" className="underline">
+          graph example
+        </Link>{" "}
+        are public demonstration content, separate from private accounts.
+      </p>
       <p>
         Save the private recovery key issued after signup. There is no email
         verification or email reset service. If both your passphrase and key are

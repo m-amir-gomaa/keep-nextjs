@@ -7,6 +7,7 @@ import { Header } from "@/components/Header";
 import { Sidebar } from "@/components/Sidebar";
 import { DashboardSearchProvider } from "@/components/DashboardSearchContext";
 import { WorkspaceProvider, useWorkspace } from "@/components/WorkspaceContext";
+import { KnowledgeProvider } from "@/components/KnowledgeContext";
 
 function Shell({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setOpen] = useState(false);
@@ -18,15 +19,26 @@ function Shell({ children }: { children: ReactNode }) {
   const router = useRouter();
   useEffect(() => {
     if (!mobile || !isSidebarOpen) return;
-    const frame = requestAnimationFrame(() => document.querySelector<HTMLAnchorElement>("#workspace-navigation a")?.focus());
+    const frame = requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLAnchorElement>("#workspace-navigation a")
+        ?.focus(),
+    );
     const escape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpen(false);
-        document.querySelector<HTMLButtonElement>('[aria-controls="workspace-navigation"]')?.focus();
+        document
+          .querySelector<HTMLButtonElement>(
+            '[aria-controls="workspace-navigation"]',
+          )
+          ?.focus();
       }
     };
     document.addEventListener("keydown", escape);
-    return () => { cancelAnimationFrame(frame);document.removeEventListener("keydown", escape); };
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", escape);
+    };
   }, [mobile, isSidebarOpen]);
   useEffect(() => {
     const media = matchMedia("(min-width: 900px)");
@@ -62,8 +74,16 @@ function Shell({ children }: { children: ReactNode }) {
       <Header
         toggleSidebar={() => setOpen((v) => !v)}
         sidebarOpen={isSidebarOpen}
-        searchable={!["/dashboard/edit-labels", "/dashboard/account"].includes(pathname)}
-        onRefresh={refresh}
+        searchable={
+          ![
+            "/dashboard/edit-labels",
+            "/dashboard/account",
+            "/dashboard/graph",
+          ].includes(pathname) && !pathname.startsWith("/dashboard/note/")
+        }
+        onRefresh={() => {
+          if (canLeave()) refresh();
+        }}
         refreshing={refreshing}
         onSignOut={logout}
         signingOut={signingOut}
@@ -113,9 +133,11 @@ function Shell({ children }: { children: ReactNode }) {
 export default function ClientLayout({ children }: { children: ReactNode }) {
   return (
     <WorkspaceProvider>
-      <DashboardSearchProvider>
-        <Shell>{children}</Shell>
-      </DashboardSearchProvider>
+      <KnowledgeProvider>
+        <DashboardSearchProvider>
+          <Shell>{children}</Shell>
+        </DashboardSearchProvider>
+      </KnowledgeProvider>
     </WorkspaceProvider>
   );
 }

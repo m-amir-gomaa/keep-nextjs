@@ -46,6 +46,7 @@ await test("unauthenticated reads and writes fail before database access", async
   const f = fixture(false);
   for (const response of [
     await f.notes.GET(),
+    await f.load(resolve(projectRoot, "src/app/api/knowledge/route")).GET(),
     await f.notes.POST(req({ title: "x" })),
     await f.item.PATCH(req({ title: "x", expectedRevision: 0 }), ctx),
     await f.item.DELETE(req(undefined, {}, "DELETE"), ctx),

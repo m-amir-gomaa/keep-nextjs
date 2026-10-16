@@ -5,6 +5,7 @@ import {
   useCallback,
   useDeferredValue,
   useId,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -14,6 +15,7 @@ import {
   type MarkdownFormat,
 } from "@/lib/markdown";
 import type { EditorControls, EditorStatus } from "./CodeEditor";
+import { NoteLinkPicker } from "./NoteLinkPicker";
 
 const CodeEditor = dynamic(() => import("./CodeEditor"), {
   ssr: false,
@@ -38,6 +40,7 @@ type Props = {
   dirty: boolean;
   idleLabel?: string;
   dirtyLabel?: string;
+  currentId?: string;
 } & (
   | { onSave: () => void; saveMode?: "save" }
   | { onSave?: never; saveMode: "download" }
@@ -74,6 +77,7 @@ export function MarkdownEditor({
   saveMode = "save",
   idleLabel = "All changes saved",
   dirtyLabel = "Unsaved changes",
+  currentId,
 }: Props) {
   const [mode, setMode] = useState<"write" | "preview" | "split">("write");
   const [keys, setKeys] = useState("standard");
@@ -84,6 +88,9 @@ export function MarkdownEditor({
     vimMode: "NORMAL",
   });
   const [notice, setNotice] = useState("");
+  const [picking, setPicking] = useState(false);
+  const simpleInput = useRef<HTMLTextAreaElement>(null);
+  const linkButton = useRef<HTMLButtonElement>(null);
   const deferredValue = useDeferredValue(value);
   const id = useId();
   const ready = useCallback(
@@ -110,6 +117,7 @@ export function MarkdownEditor({
   );
   const simple = (
     <textarea
+      ref={simpleInput}
       aria-label="Note body"
       aria-describedby={id}
       value={value}
@@ -217,6 +225,15 @@ export function MarkdownEditor({
         aria-label="Markdown tools"
       >
         <button
+          ref={linkButton}
+          type="button"
+          disabled={disabled || mode === "preview"}
+          onClick={() => setPicking((old) => !old)}
+          aria-expanded={picking}
+        >
+          Link note
+        </button>
+        <button
           type="button"
           onClick={() => controls?.undo()}
           disabled={!active || !status.canUndo}
@@ -252,6 +269,36 @@ export function MarkdownEditor({
           Download .md
         </button>
       </div>
+      {picking && (
+        <NoteLinkPicker
+          currentId={currentId}
+          onCancel={() => {
+            setPicking(false);
+            linkButton.current?.focus();
+          }}
+          onInsert={(text) => {
+            if (keys !== "simple" && controls) controls.insert(text);
+            else {
+              const start = simpleInput.current?.selectionStart ?? value.length,
+                end = simpleInput.current?.selectionEnd ?? start;
+              const next = value.slice(0, start) + text + value.slice(end);
+              if (next.length > MAX_NOTE_BODY) {
+                limit();
+                return;
+              }
+              onChange(next);
+              requestAnimationFrame(() => {
+                simpleInput.current?.focus();
+                simpleInput.current?.setSelectionRange(
+                  start + text.length,
+                  start + text.length,
+                );
+              });
+            }
+            setPicking(false);
+          }}
+        />
+      )}
       <div className={"note-editor-panes note-editor-" + mode}>
         <div hidden={mode === "preview"} className="note-write-pane">
           {keys === "simple" ? (
