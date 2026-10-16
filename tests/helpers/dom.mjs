@@ -31,6 +31,17 @@ export function setAuthenticate(fn) {
 }
 const router = { push: (path) => navigation.push(path), refresh: () => {} };
 export const load = loader({
+  // Component-boundary tests exercise saving, not a layout engine. Actual CodeMirror/Vim
+  // and preview behavior run in production Chromium with the real API/database.
+  "./MarkdownEditor": {
+    MarkdownEditor: ({ value, onChange, disabled }) =>
+      React.createElement("textarea", {
+        "aria-label": "Note body",
+        value,
+        disabled,
+        onChange: (event) => onChange(event.target.value),
+      }),
+  },
   "next/navigation": {
     useRouter: () => router,
     usePathname: () => "/dashboard",

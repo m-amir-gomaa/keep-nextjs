@@ -7,15 +7,13 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   icons: { icon: "/noteweld.svg" },
   title: "Noteweld — a connected writing workspace",
-  description: "Private notes and checklists with labels, search, recoverable trash and clear save controls.",
+  description:
+    "Private Markdown notes and checklists with optional Vim keys, safe preview, labels, search and clear save controls.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className="h-full antialiased"
-    >
+    <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

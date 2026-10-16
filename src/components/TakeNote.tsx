@@ -4,6 +4,7 @@ import { Icons } from "./Icons";
 import { ColorPicker } from "./ColorPicker";
 import { LabelPicker } from "./LabelPicker";
 import { ChecklistEditor } from "./ChecklistEditor";
+import { MarkdownEditor } from "./MarkdownEditor";
 import { ClientError, requestJSON } from "@/lib/client-api";
 import { useDraftGuard } from "./WorkspaceContext";
 import type { ListItem } from "@/types";
@@ -112,8 +113,18 @@ export function TakeNote({ onNoteAdded }: { onNoteAdded: () => void }) {
   return (
     <section
       aria-label={isList ? "Create checklist" : "Create note"}
+      onKeyDownCapture={(event) => {
+        if (
+          (event.ctrlKey || event.metaKey) &&
+          event.key.toLowerCase() === "s"
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!saving) void closeAndSave();
+        }
+      }}
       style={{ backgroundColor: color || "var(--surface-main)" }}
-      className="max-w-[600px] mx-auto my-8 rounded-xl border border-[var(--border)] shadow-lg"
+      className="max-w-[1000px] mx-auto my-8 rounded-xl border border-[var(--border)] shadow-lg"
     >
       <div className="flex items-start p-4 pb-2 gap-3">
         <input
@@ -145,15 +156,14 @@ export function TakeNote({ onNoteAdded }: { onNoteAdded: () => void }) {
             disabled={saving}
           />
         ) : (
-          <textarea
-            placeholder="Take a note..."
-            aria-label="Note body"
-            maxLength={100000}
+          <MarkdownEditor
             value={body}
+            onChange={setBody}
+            title={title}
             disabled={saving}
-            onChange={(event) => setBody(event.target.value)}
-            rows={Math.min(18, Math.max(2, body.split("\n").length))}
-            className="w-full bg-transparent outline-none text-sm resize-none"
+            onSave={closeAndSave}
+            dirty={dirty}
+            idleLabel="New note"
           />
         )}
       </div>

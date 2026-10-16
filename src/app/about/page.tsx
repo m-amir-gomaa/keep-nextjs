@@ -11,8 +11,10 @@ export default function About() {
       <p>
         This is Amir Gomaa&apos;s free portfolio preview for private notes and
         checklists. It is limited to 100 accounts, 250 notes, 50 labels and 2
-        MiB of note text per account. Billing is closed. Markdown editing, Vim
-        keys, backlinks and a graph are planned; they are not included yet.
+        MiB of note text per account. Billing is closed. Markdown writing,
+        preview, optional Vim keys, in-session undo, search and Markdown
+        downloads are included. Backlinks, a graph and source-bundle imports are
+        planned.
       </p>
       <h2 className="text-xl">Your data</h2>
       <p>
@@ -31,6 +33,17 @@ export default function About() {
         than two days during daily maintenance. Hosting providers may maintain
         their own request/security logs. Application logs exclude note text and
         passwords.
+      </p>
+      <p>
+        Markdown editing and preview happen in your browser. Raw HTML is not
+        executed, and embedded images do not load automatically. External links
+        and images open only when you choose them. Unsaved drafts and undo
+        history live in the current tab; they are not durable backups. The
+        public{" "}
+        <Link href="/example" className="underline">
+          editor example
+        </Link>{" "}
+        does not upload or save its scratchpad to an account.
       </p>
       <h2 className="text-xl">Recovery, export and deletion</h2>
       <p>
@@ -53,7 +66,7 @@ export default function About() {
         <a href="mailto:mo.gomaa.formal@gmail.com" className="underline">
           mo.gomaa.formal@gmail.com
         </a>
-        . Updated 15 October 2026.
+        . Updated 16 October 2026.
       </p>
     </main>
   );

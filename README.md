@@ -7,11 +7,15 @@ A private notes/checklist preview built with Next.js 16.3.8, React 19, Auth.js a
 - Real account/seed transactions; normalized unique email and label identities; exact passphrases, with 15-character minimum and bcrypt's 72-byte UTF-8 limit.
 - Cookie authentication, hashed one-time recovery keys, key rotation, session revocation on recovery and account deletion. No email verification/reset provider is connected.
 - Notes, checklists, pin/colour/archive/trash, labels and search; shared navigation updates and narrow-screen drawer.
+- Markdown source editing with CodeMirror, optional Vim keys, undo/redo, in-note find/replace, formatting, safe GFM preview and split view. A simple textarea remains available. [Try the account-free editor](https://m-amir-gomaa--noteweld-web-app.us-east.modal.run/example).
+- Exact `.md` downloads, explicit save shortcuts and retained undo when switching standard/Vim keys or write/preview/split views. Saved-version reload starts fresh history; server revisions protect against concurrent changes rather than storing a permanent revision archive.
 - Explicit saves, preserved failed drafts, bounded requests, idempotent creation and revision conflicts instead of silent overwrites. Trash permits restoration or confirmed permanent deletion.
 - Snapshot-based empty trash, account JSON export, confirmed passphrase-protected account deletion, no-cache private responses and nonce-based production script CSP.
 - Bounded free preview: 100 accounts, 50 registrations/day, 250 notes, 50 labels and 2 MiB note text/account. PostgreSQL-backed admission limits and one scale-to-zero CPU web container.
 
-**Not implemented:** Markdown/Vim editing, wiki links/backlinks/graph, Sonaweft/Pageweft bundle imports, paid access, reminders, offline sync, collaboration and end-to-end encryption. Those follow this reliability foundation. This is not a production SLA or a place for irreplaceable/sensitive material.
+**Not implemented:** wiki links/backlinks/graph, Sonaweft/Pageweft bundle imports, durable revision history, paid access, reminders, offline sync, collaboration and end-to-end encryption. Those follow this editing milestone. This is not a production SLA or a place for irreplaceable/sensitive material.
+
+The `/example` scratchpad needs no account and never uploads its content. In that demo Ctrl/Cmd-S and `:w` download Markdown; in the private workspace they save to the account. Drafts and undo live in the current tab. Read the [editor guide](docs/EDITOR.md) and [current editor release evidence](docs/EDITOR-RELEASE.md); [foundation evidence](docs/RELEASE.md) is the 15 October baseline.
 
 ## Isolated local development
 

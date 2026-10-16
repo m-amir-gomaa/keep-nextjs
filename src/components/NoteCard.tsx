@@ -9,6 +9,7 @@ import { Icons } from "./Icons";
 import { LabelPicker } from "./LabelPicker";
 import { ColorPicker } from "./ColorPicker";
 import { ChecklistEditor } from "./ChecklistEditor";
+import { MarkdownEditor } from "./MarkdownEditor";
 
 type Props = { note: Note; onUpdate: () => void };
 export function NoteCard({ note, onUpdate }: Props) {
@@ -22,6 +23,7 @@ export function NoteCard({ note, onUpdate }: Props) {
   const [error, setError] = useState("");
   const [failureStatus, setFailureStatus] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [editorVersion, setEditorVersion] = useState(0);
   const pending = useRef(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
@@ -81,14 +83,14 @@ export function NoteCard({ note, onUpdate }: Props) {
       setBusy(false);
     }
   }
-  async function saveAndClose() {
+  async function saveAndClose(close = true) {
     if (pending.current) return;
     if (!dirty) {
-      setEditing(false);
+      if (close) setEditing(false);
       return;
     }
     await perform(async () => {
-      await requestJSON("/api/notes/" + base.id, {
+      const saved = await requestJSON<Note>("/api/notes/" + base.id, {
         method: "PATCH",
         body: JSON.stringify({
           title,
@@ -99,7 +101,8 @@ export function NoteCard({ note, onUpdate }: Props) {
           expectedRevision: base.revision,
         }),
       });
-      setEditing(false);
+      fill(saved);
+      if (close) setEditing(false);
       onUpdate();
     });
   }
@@ -285,14 +288,24 @@ export function NoteCard({ note, onUpdate }: Props) {
           <dialog
             ref={dialog}
             aria-label="Edit note"
-            className="m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-[600px] overflow-y-auto rounded-xl border border-[var(--border)] p-0 text-[var(--text-primary)] shadow-2xl backdrop:bg-black/60"
+            className="m-auto max-h-[92dvh] w-[calc(100%-1rem)] max-w-[1000px] overflow-y-auto rounded-xl border border-[var(--border)] p-0 text-[var(--text-primary)] shadow-2xl backdrop:bg-black/60"
             style={{ backgroundColor: color || "var(--surface-overlay)" }}
+            onKeyDownCapture={(event) => {
+              if (
+                (event.ctrlKey || event.metaKey) &&
+                event.key.toLowerCase() === "s"
+              ) {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!busy) void saveAndClose(false);
+              }
+            }}
             onCancel={(e) => {
               e.preventDefault();
-              void saveAndClose();
+              discard();
             }}
             onClick={(e) => {
-              if (e.target === e.currentTarget) void saveAndClose();
+              if (e.target === e.currentTarget) discard();
             }}
           >
             <div className="p-4">
@@ -316,17 +329,15 @@ export function NoteCard({ note, onUpdate }: Props) {
                 {base.isList ? (
                   <ChecklistEditor items={items} onChange={setItems} />
                 ) : (
-                  <label className="block text-sm">
-                    Note
-                    <textarea
-                      aria-label="Note body"
-                      placeholder="Note"
-                      maxLength={100000}
-                      className="input-ghost mt-1 min-h-48 w-full resize-y rounded-lg border border-[var(--border)] p-2"
-                      value={body}
-                      onChange={(e) => setBody(e.target.value)}
-                    />
-                  </label>
+                  <MarkdownEditor
+                    key={editorVersion}
+                    value={body}
+                    onChange={setBody}
+                    title={title}
+                    disabled={busy}
+                    onSave={() => void saveAndClose(false)}
+                    dirty={dirty}
+                  />
                 )}
                 <div className="flex gap-2">
                   <LabelPicker
@@ -373,6 +384,7 @@ export function NoteCard({ note, onUpdate }: Props) {
                               "/api/notes/" + base.id,
                             );
                             fill(saved);
+                            setEditorVersion((version) => version + 1);
                             onUpdate();
                           });
                       }}
@@ -381,7 +393,15 @@ export function NoteCard({ note, onUpdate }: Props) {
                     </button>
                   </div>
                 )}
-                <div className="flex flex-wrap justify-end gap-3 border-t border-[var(--border)] pt-3">
+                <div className="note-dialog-actions flex flex-wrap justify-end gap-3 border-t border-[var(--border)] pt-3">
+                  <button
+                    type="button"
+                    className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm"
+                    disabled={!dirty}
+                    onClick={() => void saveAndClose(false)}
+                  >
+                    Save
+                  </button>
                   <button
                     type="button"
                     className="rounded-lg px-3 py-2 text-sm"

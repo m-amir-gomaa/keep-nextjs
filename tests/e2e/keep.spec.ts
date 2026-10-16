@@ -66,7 +66,7 @@ test("account, notes, conflicts, labels, mobile navigation, recovery and deletio
   await expect(
     page.locator('[role="alert"]:not(#__next-route-announcer__)'),
   ).toContainText("Synthetic connection failure");
-  await expect(page.getByLabel("Note body", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("Note body", { exact: true })).toHaveText(
     "  Preserve body whitespace.  ",
   );
   await page.getByRole("button", { name: "Save note", exact: true }).click();
@@ -109,14 +109,17 @@ test("account, notes, conflicts, labels, mobile navigation, recovery and deletio
   await expect(dialog.getByRole("alert")).toContainText(
     /changed|updated|another/i,
   );
-  await expect(page.getByLabel("Note body", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("Note body", { exact: true })).toHaveText(
     "Draft must survive a conflict",
   );
   page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "Reload saved version" }).click();
-  await expect(page.getByLabel("Note body", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("Note body", { exact: true })).toHaveText(
     "Saved from a second tab",
   );
+  await expect(
+    page.getByRole("button", { name: "Undo", exact: true }),
+  ).toBeDisabled();
   await page.getByRole("button", { name: "Save & close" }).click();
   await expect(dialog).toBeHidden();
   // Search and actual checklist mutation/trash restoration.
@@ -127,14 +130,12 @@ test("account, notes, conflicts, labels, mobile navigation, recovery and deletio
   await page.getByLabel("Note title", { exact: true }).fill("Checklist");
   await page.getByLabel("Item 1", { exact: true }).fill("A real task");
   await page.getByRole("button", { name: "Save note", exact: true }).click();
-  const card = page
-    .locator("article")
-    .filter({
-      has: page.getByRole("button", {
-        name: "Open note Checklist",
-        exact: true,
-      }),
-    });
+  const card = page.locator("article").filter({
+    has: page.getByRole("button", {
+      name: "Open note Checklist",
+      exact: true,
+    }),
+  });
   await card.locator("input[type=checkbox]").click();
   await expect(card.locator("input[type=checkbox]")).toBeChecked();
   await card
